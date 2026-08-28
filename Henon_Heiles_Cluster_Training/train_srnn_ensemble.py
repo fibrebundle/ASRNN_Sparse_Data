@@ -29,6 +29,7 @@ import sys
 import time
 import argparse
 import traceback
+import multiprocessing as mp
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import numpy as np
@@ -184,7 +185,14 @@ def main():
     failures = []
     n_remaining_at_start = len(configs)
     train_times = []  # only successful trains -- skips are near-instant and would skew the average
-    with ProcessPoolExecutor(max_workers=args.workers) as ex:
+    # 'spawn' is required for CUDA: the main process above already touched
+    # torch.cuda (is_available/device_count), which initializes a CUDA context.
+    # The default 'fork' start method on Linux would hand each worker a copy of
+    # that already-initialized context, which CUDA does not support -- every
+    # worker call would fail with "Cannot re-initialize CUDA in forked
+    # subprocess". 'spawn' starts each worker as a fresh interpreter instead.
+    mp_ctx = mp.get_context("spawn")
+    with ProcessPoolExecutor(max_workers=args.workers, mp_context=mp_ctx) as ex:
         futures = [ex.submit(train_one, **cfg) for cfg in configs]
         n_trained, n_skipped, n_failed = 0, 0, 0
         pbar = tqdm(as_completed(futures), total=len(futures), desc="HH SRNN ensemble (cluster)")

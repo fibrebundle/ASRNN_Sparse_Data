@@ -69,24 +69,35 @@ and watch `nvidia-smi` for memory/utilization before pushing higher.
 WORKERS=1 ENSEMBLE=40 sbatch submit_slurm.sbatch
 ```
 
-## 4. Troubleshooting: torch doesn't see the GPU
+## 4. Troubleshooting
 
-`run_cluster_job.sh` prints a CUDA check after installing torch. If it says
-`cuda available: False` on a machine that clearly has a GPU (per
-`nvidia-smi`), the plain `pip install torch` likely resolved a CPU-only or
-mismatched-CUDA wheel. Fix by installing a specific CUDA-matched build
-instead, e.g. for CUDA 12.1:
+**torch doesn't see the GPU:** `run_cluster_job.sh` prints a CUDA check after
+installing torch. If it says `cuda available: False` on a machine that
+clearly has a GPU (per `nvidia-smi`), the plain `pip install torch` likely
+resolved a CPU-only or mismatched-CUDA wheel. Fix by installing a
+CUDA-matched build instead -- for this cluster's CUDA 12.6:
 
 ```bash
 source venv/bin/activate
 pip uninstall -y torch
-pip install torch --index-url https://download.pytorch.org/whl/cu121
+pip install torch --index-url https://download.pytorch.org/whl/cu126
 ```
 
-(Swap `cu121` for whatever matches your cluster's CUDA version from step 2 --
-see https://pytorch.org/get-started/locally/ for the current mapping.) Then
+(If `cu126` isn't available for some reason, `cu124` or `cu121` wheels are
+typically forward-compatible with a 12.6 driver -- see
+https://pytorch.org/get-started/locally/ for the current mapping.) Then
 re-run `python train_srnn_ensemble.py ...` directly (no need to redo the venv
 setup).
+
+**`RuntimeError: Cannot re-initialize CUDA in forked subprocess`:** this was
+a real bug in an earlier version of `train_srnn_ensemble.py` -- the main
+process calls `torch.cuda.is_available()` to auto-detect GPUs, which
+initializes a CUDA context, and the default `fork` start method on Linux then
+handed every worker process a copy of that already-initialized context, which
+CUDA doesn't support. Fixed by launching the worker pool with an explicit
+`multiprocessing.get_context("spawn")`. If you're seeing this error, make
+sure you have the current version of this file (`git pull`) rather than
+patching around it.
 
 ## 5. Resuming an already-completed local run (optional, saves ~25% of the work)
 
