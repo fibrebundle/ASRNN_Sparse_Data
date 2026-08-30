@@ -1,0 +1,9 @@
+# Core dependencies for the Morse ASRNN verification training.
+# NOTE: install torch separately first, using the wheel matching your
+# cluster's CUDA version -- see RUN_INSTRUCTIONS.md. Do not `pip install`
+# this file until torch is already installed and confirmed to see the GPU
+# (torch.cuda.is_available() == True), otherwise pip may resolve a CPU-only
+# torch wheel instead.
+numpy
+scikit-learn
+tqdm
